@@ -4,8 +4,6 @@
     "daniluk4000"
   ],
   "enabledManagers": [
-    "npm",
-    "bun",
     "yarn"
   ],
   "prConcurrentLimit": 0,
@@ -105,15 +103,14 @@
   "extends": [
     ":automergeDisabled",
     ":dependencyDashboard",
-    "group:recommended",
-    "replacements:all"
+    "group:recommended"
   ],
   "rangeStrategy": "bump",
   "npm": {
     "commitMessageTopic": "{{prettyDepType}} {{depName}}"
   },
   "constraints": {
-    "node": "^20 || ^22"
+    "node": "^22 || ^24"
   },
   "updateLockFiles": true
 }

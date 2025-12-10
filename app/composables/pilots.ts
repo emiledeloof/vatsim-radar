@@ -4,7 +4,7 @@ import type { Feature, Map } from 'ol';
 import type { ShallowRef } from 'vue';
 import { computed } from 'vue';
 import type { AircraftIcon } from '~/utils/icons';
-import { Icon, Stroke, Style } from 'ol/style';
+import { Icon, Stroke, Style, Text, Fill } from 'ol/style';
 import { useStore } from '~/store';
 import type { ColorsList } from '~/utils/backend/styles';
 import { colorPresets } from '~/utils/shared/flight';
@@ -246,22 +246,29 @@ export async function fetchAircraftIcon(icon: AircraftIcon) {
     return svg;
 }
 
-export async function loadAircraftIcon({ feature, icon, status, style, rotation, force, cid, scale }: {
+function getMaxRotatedHeight(width: number, height: number): number {
+    return Math.sqrt((width * width) + (height * height));
+}
+
+export async function loadAircraftIcon({ feature, icon, status, style: styles, rotation, force, cid, scale, onGround }: {
     feature: Feature;
     icon: AircraftIcon;
     rotation: number;
     status: MapAircraftStatus;
-    style: Style;
+    style: Style[];
     force?: boolean;
+    onGround?: boolean;
     cid: number;
     scale?: number;
 }) {
     if (icon === 'ball') rotation = 0;
 
-    const store = useStore();
-    const resolvedScale = typeof scale === 'number' ? scale : (store.mapSettings.aircraftScale ?? 1);
+    const [textStyle, imageStyle] = styles;
 
-    const image = style.getImage();
+    const store = useStore();
+    let resolvedScale = typeof scale === 'number' ? scale : (store.mapSettings.aircraftScale ?? 1);
+
+    const image = imageStyle.getImage();
 
     const featureProperties = feature.getProperties() ?? {};
     const list = getUserList(cid);
@@ -277,6 +284,40 @@ export async function loadAircraftIcon({ feature, icon, status, style, rotation,
         }
     }
 
+    if (resolvedScale > 4) resolvedScale = 4;
+
+    let text = textStyle.getText();
+    const offsetY = ((getMaxRotatedHeight(radarIcons[icon].width, radarIcons[icon].height) * resolvedScale) / 2) + 6 + 2;
+
+    const declutter = ownFlight.value?.cid !== cid && useMapStore().zoom < 18;
+    const declutterMode = declutter ? 'declutter' : 'none';
+
+    const scaledWidth = radarIcons[icon].width * resolvedScale;
+    const hideText = scaledWidth < 10 || useDataStore().visiblePilots.value.length > (store.mapSettings.pilotLabelLimit ?? 100);
+    const textValue = hideText ? undefined : featureProperties.callsign;
+
+    if (!text || text.getDeclutterMode() !== declutterMode) {
+        textStyle.setText(new Text({
+            text: textValue,
+            font: '600 11px Montserrat',
+            declutterMode,
+            textBaseline: 'middle',
+            fill: new Fill({
+                color: `rgba(${ getCurrentThemeRgbColor('success500').join(',') }, 1)`,
+            }),
+            offsetY: Math.ceil(offsetY),
+        }));
+
+        text = textStyle.getText();
+    }
+    else if (textValue !== text.getText()) {
+        text.setText(textValue);
+    }
+
+    const textFill = text!.getFill()!;
+
+    text?.setOffsetY(Math.ceil(offsetY));
+
     if (!force &&
         image &&
         featureProperties.imageStatus === status &&
@@ -288,14 +329,17 @@ export async function loadAircraftIcon({ feature, icon, status, style, rotation,
         image.setRotation(rotation);
     }
     else {
+        textFill.setColor(getAircraftStatusColor(status, cid));
+
         if ((status === 'default' || status === 'ground') && !list) {
             let color = store.mapSettings.colors?.[store.getCurrentTheme]?.aircraft?.[status === 'ground' ? 'ground' : 'main'];
 
             if (status === 'ground' && !color) color = store.mapSettings.colors?.[store.getCurrentTheme]?.aircraft?.main;
 
-            style.setImage(new Icon({
-                src: `/aircraft/${ icon }${ (filterColor || (color && color.color !== 'primary500')) ? '-white' : '' }${ store.theme === 'light' ? '-light' : '' }.png?v=${ store.version }`,
-                width: radarIcons[icon].width * resolvedScale,
+            imageStyle.setImage(new Icon({
+                declutterMode: 'obstacle',
+                src: `/aircraft/${ icon }${ (filterColor || (color && color.color !== 'primary500')) ? '-white' : '' }${ store.theme === 'light' ? '-light' : '' }.webp?v=${ store.version }`,
+                width: scaledWidth,
                 rotation,
                 rotateWithView: true,
                 // @ts-expect-error Custom prop
@@ -306,9 +350,11 @@ export async function loadAircraftIcon({ feature, icon, status, style, rotation,
         }
         else {
             const svg = await fetchAircraftIcon(icon);
-            style.setImage(new Icon({
+
+            imageStyle.setImage(new Icon({
+                declutterMode: 'obstacle',
                 src: svgToDataURI(reColorSvg(svg, status, cid)),
-                width: radarIcons[icon].width * resolvedScale,
+                width: scaledWidth,
                 rotation,
                 rotateWithView: true,
                 // @ts-expect-error Custom prop
@@ -417,13 +463,12 @@ export function getPilotsForPixel(map: Map, pixel: Pixel, tolerance = 25, exitOn
 
     if (collapsingWithOverlay(map, pixel)) return []; // The mouse is over an relevant overlay, we don't want to return any pilot
 
-    return dataStore.visiblePilots.value.filter(x => {
-        const pilotPixel = aircraftCoordsToPixel(map, x);
-        if (!pilotPixel) return false;
+    const featuresFilter = map.getFeaturesAtPixel(pixel, {
+        hitTolerance: tolerance, // we use 6 instead of 5 because of the aircraft icons size, it is just for cosmetic reasons
+        layerFilter: layer => layer.getProperties().type === 'aircraft',
+    });
 
-        return Math.abs(pilotPixel[0] - pixel[0]) < tolerance &&
-            Math.abs(pilotPixel[1] - pixel[1]) < tolerance;
-    }) ?? [];
+    return featuresFilter.map(x => dataStore.vatsim.data.keyedPilots.value[x.getProperties().id]).filter(x => x);
 }
 
 export function aircraftCoordsToPixel(map: Map, aircraft: VatsimMandatoryPilot): Pixel | null {

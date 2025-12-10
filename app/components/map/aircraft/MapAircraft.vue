@@ -1,5 +1,5 @@
 <template>
-    <template v-if="(!props.isHovered && !isShowLabel) || store.mapSettings.heatmapLayer">
+    <template v-if="!props.isHovered  || store.mapSettings.heatmapLayer">
         <slot/>
     </template>
     <template v-else>
@@ -154,33 +154,6 @@
                 </div>
             </common-popup-block>
         </map-overlay>
-        <map-overlay
-            v-if="pilot"
-            class="aircraft-overlay"
-            :model-value="isShowLabel"
-            persistent
-            :settings="{
-                position: getCoordinates,
-                offset: [0, 0],
-            }"
-            :style="{ '--imageHeight': `${ radarIcons[icon.icon].height }px`, '--scale': aircraftScale }"
-            :z-index="19"
-        >
-            <div
-                class="aircraft-label"
-                :style="{ '--color': getAircraftStatusColor(getStatus, aircraft.cid) }"
-                @click="!isMobileOrTablet && mapStore.togglePilotOverlay(aircraft.cid.toString())"
-                @mouseleave="hovered = false"
-                @mouseover="mapStore.canShowOverlay ? hovered = true : undefined"
-            >
-                <div
-                    class="aircraft-label_text"
-                    :style="{ 'scale': 1 / aircraftScale }"
-                >
-                    {{ pilot.callsign }}
-                </div>
-            </div>
-        </map-overlay>
     </template>
 </template>
 
@@ -221,6 +194,7 @@ import CommonPilotDestination from '~/components/common/vatsim/CommonPilotDestin
 import CommonSpoiler from '~/components/common/vatsim/CommonSpoiler.vue';
 import { useRadarError } from '~/composables/errors';
 import type { Positioning } from 'ol/Overlay';
+import { getZoomScaleMultiplier } from '~/utils/map/aircraft-scale';
 
 const props = defineProps({
     aircraft: {
@@ -228,10 +202,6 @@ const props = defineProps({
         required: true,
     },
     isHovered: {
-        type: Boolean,
-        default: false,
-    },
-    showLabel: {
         type: Boolean,
         default: false,
     },
@@ -275,7 +245,6 @@ const turnsFirstGroupTimestamp = ref('');
 const turnsSecondGroupPoint = shallowRef<GeoFeature<GeoPoint> | null>(null);
 const turnsFirstGroup = shallowRef<InfluxGeojsonFeatureCollection | null>(null);
 const linesUpdateInProgress = ref(false);
-const isMobileOrTablet = useIsMobileOrTablet();
 const friend = computed(() => store.friends.find(x => x.cid === props.aircraft.cid));
 
 function degreesToRadians(degrees: number) {
@@ -289,7 +258,7 @@ const icon = computed(() => 'icon' in props.aircraft ? aircraftIcons[props.aircr
 const isSelfFlight = computed(() => props.aircraft?.cid === ownFlight.value?.cid);
 
 function checkForExpiredCoordinate() {
-    if (dataStore.vatsim.selfCoordinate.value && dataStore.vatsim.updateTime.value - dataStore.vatsim.selfCoordinate.value.date > 1000 * 5) {
+    if (dataStore.vatsim.selfCoordinate.value && dataStore.vatsim.localUpdateTime.value - dataStore.vatsim.selfCoordinate.value.date > 1000 * 5) {
         dataStore.vatsim.selfCoordinate.value = null;
         return [props.aircraft.longitude, props.aircraft.latitude];
     }
@@ -311,9 +280,14 @@ const pilot = computed(() => dataStore.vatsim.data.keyedPilots.value[props.aircr
 
 const aircraftScale = computed(() => {
     const baseScale = store.mapSettings.aircraftScale ?? 1;
-    if (!isDynamicAircraftScale) return baseScale;
+    if (!isDynamicAircraftScale.value || !pilot.value) return baseScale;
 
-    return +(baseScale * getZoomScaleMultiplier(mapStore.zoom)).toFixed(3);
+    const iconWidth = radarIcons[icon.value.icon].width;
+    const lat = getCoordinates.value?.[1];
+    const pilotStatus = pilot.value.status;
+    const isPilotOnGround = pilotStatus === 'depGate' || pilotStatus === 'depTaxi' || pilotStatus === 'arrTaxi' || pilotStatus === 'arrGate';
+
+    return +(baseScale * getZoomScaleMultiplier({ zoom: mapStore.zoom, baseScale, iconPixelWidth: iconWidth, latitude: lat, isPilotOnGround })).toFixed(3);
 });
 
 const getStatus = computed<MapAircraftStatus>(() => {
@@ -345,18 +319,21 @@ const handleMouseEnter = (event: MouseEvent) => {
     else hoveredOverlay.value = true;
 };
 
-const setStyle = async (iconFeature = feature, force = false) => {
-    if (!iconFeature) return;
+const setStyle = async (force = false) => {
+    if (!feature) return;
 
-    let style = getFeatureStyle(iconFeature);
+    let style = getFeatureStyle<Style[]>(feature);
 
-    if (!style) {
-        style = new Style();
-        iconFeature.setStyle(style);
+    if (!style?.length) {
+        style = [
+            new Style(),
+            new Style(),
+        ];
+        feature.setStyle(style);
     }
 
     await loadAircraftIcon({
-        feature: iconFeature,
+        feature,
         icon: icon.value.icon,
         rotation: degreesToRadians(getHeading.value ?? 0),
         status: getStatus.value,
@@ -364,12 +341,15 @@ const setStyle = async (iconFeature = feature, force = false) => {
         force,
         cid: props.aircraft.cid,
         scale: aircraftScale.value,
+        onGround: isOnGround.value,
     });
 
-    iconFeature.changed();
+    feature.changed();
 };
 
 let initActive = false;
+
+let previousSetCallsign: string | undefined;
 
 const init = async () => {
     if (isSelfFlight.value) {
@@ -389,8 +369,15 @@ const init = async () => {
             geometry: new Point(getCoordinates.value),
             status: getStatus.value,
             icon: icon.value.icon,
+            callsign: pilot.value?.callsign,
             rotation: degreesToRadians(getHeading.value ?? 0),
         });
+
+        if (pilot.value?.callsign && previousSetCallsign !== pilot.value?.callsign) {
+            iconFeature.setProperties({ ...iconFeature.getProperties(), callsign: pilot.value.callsign });
+        }
+
+        previousSetCallsign = pilot.value?.callsign;
 
         const oldCoords = (feature?.getGeometry() as Point)?.getCoordinates();
 
@@ -404,16 +391,17 @@ const init = async () => {
         if (feature) (feature.getGeometry() as Point).setCoordinates(getCoordinates.value);
 
         if (!feature) {
-            const foundFeature = vectorSource.value?.getFeatures().find(x => x.getProperties().id === props.aircraft.cid);
+            const foundFeatures = vectorSource.value?.getFeatures().filter(x => x.getProperties().id === props.aircraft.cid);
 
-            if (foundFeature) {
-                vectorSource.value?.removeFeature(foundFeature);
+            if (foundFeatures?.length) {
+                vectorSource.value?.removeFeatures(foundFeatures);
             }
 
             vectorSource.value.addFeature(iconFeature);
+
+            feature = iconFeature;
         }
 
-        feature = iconFeature;
         isInit.value = true;
         setState();
     }
@@ -477,11 +465,11 @@ watch(changeState, setState);
 
 watch(aircraftScale, (val, oldVal) => {
     if (val === oldVal) return;
-    setStyle(undefined, true);
+    setStyle(true);
 });
 
 watch(() => store.mapSettings.heatmapLayer, () => {
-    setStyle(undefined, true);
+    setStyle(true);
 });
 
 const depAirport = computed(() => pilot.value?.departure && dataStore.vatspy.value?.data.keyAirports.realIcao[pilot.value?.departure]);
@@ -532,6 +520,7 @@ async function setPilotRoute(enabled: boolean) {
 
         dataStore.navigraphWaypoints.value[props.aircraft.cid.toString()] = {
             pilot: pilot.value,
+            coordinates: getCoordinates.value,
             full: typeof activeCurrentOverlay.value?.data?.fullRoute === 'boolean' ? activeCurrentOverlay.value?.data?.fullRoute : !!store.user?.settings.showFullRoute,
             calculatedArrival: dataStore.navigraphWaypoints.value[props.aircraft.cid.toString()]?.calculatedArrival,
             disableHoldings: store.localSettings.navigraphRouteAirportOverlay?.holds === false && !activeCurrentOverlay.value && !props.isHovered,
@@ -975,14 +964,6 @@ watch([hovered, hoveredOverlay], async () => {
     }
 });
 
-const isShowLabel = computed<boolean>(() => (props.showLabel || (!!store.user?.cid && !!ownFlight.value && activeCurrentOverlay.value?.key === ownFlight.value?.cid.toString())) && !store.mapSettings.heatmapLayer);
-
-watch(isShowLabel, val => {
-    if (!val) {
-        hovered.value = false;
-    }
-});
-
 const watcher = watch([dataStore.vatsim.updateTimestamp, textCoordinates], init);
 
 onBeforeUnmount(() => {
@@ -1061,22 +1042,6 @@ onBeforeUnmount(() => {
             width: 0;
         }
     }
-}
-
-.aircraft-label {
-    cursor: pointer;
-    user-select: none;
-
-    position: absolute;
-    top: calc(var(--imageHeight) * var(--scale) / 2);
-    transform: translate(-50%, 0) scale(var(--scale));
-
-    width: fit-content;
-    padding-top: 3px;
-
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--color);
 }
 
 .__grid-info-sections_title {

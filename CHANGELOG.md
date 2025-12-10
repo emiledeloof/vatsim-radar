@@ -1,5 +1,61 @@
 # Changelog
 
+# [1.2.4-rc.4]
+
+- (QA) Fixed unable to hover over aircraft issue
+- (QA) Removed Pizza Hut from detailed map layer
+- You can now choose to show raw SIGMET data only when clicking on them
+- Default ground traffic mode is now "hide if zoomed out" instead of "show all"
+
+# [1.2.4-rc.3]
+
+- NY_CTR has finally been excluded from VATGlasses display
+
+# [1.2.4-rc.2]
+
+- Fixed issues that some aircraft labels got hidden when they shouldn't
+
+# [1.2.4-rc.1]
+
+- Updated map tiles to 07 Dec 25 from 24 July 25
+- (QA) Updated zoom transition threshold in air to 14 instead of 16
+- It's now much easier to click on aircraft that is close to airport name
+- Country boundaries have been removed in favor of VATSpy sector display
+- All boundaries have been removed from "light" layer
+
+# [1.2.4-beta.9]
+
+- Fixed first approach waypoint not showing constraints
+
+# [1.2.4-beta.8]
+
+- (QA) Improved dynamic aircraft scaling based on zoom level by 1489535 — airplanes on the ground are now scaled to their real-world size
+- Center and APP sectors will now disappear when zooming in by 1489535
+- Reworked aircraft callsign render and interaction
+- Fixed dynamic zoom switch
+- You can now hover precisely on aircraft even in "crowded" space
+  
+# [1.2.4-beta.7]
+
+- (QA) Fixed dashed line becoming not dashed for own flight
+- Added transitions select even if only one transition is available - so you can toggle it, or turn if off, when applicable
+- Fixed airway waypoints disappearing, if star starts right after airway
+
+# [1.2.4-beta.6]
+
+- (QA) Fast update now only happens below 100GS
+- Slightly improved performance for loading any Navigraph Data or Airport Data - noticeable for users with heavy friends
+  lists, or for next users
+
+# [1.2.4-beta.5]
+
+- (QA) Fixed fast updates issues
+- Aircraft icon will now move together with map, not fall behind
+- Fixed presets sorting not working
+- Duplicated controllers are now hidden from ATC online stats
+- Duplicated controllers now show with a dashed line
+- Added bgvacc.org, vatsim.me, nyart.cc (thanks emiledeloof) and vatsim-petersburg.com to domain whitelist
+
 # [1.2.4-beta.4]
 
 - Added (and enabled by default) long requested dynamic aircraft scaling based on zoom level by 1489535
@@ -22,12 +78,13 @@
 - Other dependencies update to improve stability
 - Your predicted route is now thicker than other
 - Improved memory consumption of next waypoint dashed line render
-- Airport dashboard will no longer open aircraft card if your flight is active, making it more usable for regular flights
+- Airport dashboard will no longer open aircraft card if your flight is active, making it more usable for regular
+  flights
 - Predicted route line will no longer be added before you even departed to improve map readability
 - Fixed an issue when your aircraft was not tracked when it was supposed to on map first open
 - Reduced traffic consumption on "online" status check
 - People will now be marked as "online" in VATSIM Radar for ~2 minutes after they've left the tab, instead of 10 seconds
-- Implemented very fast updating of your own flight (below FL250)
+- Implemented very fast updating of your own flight (below FL250 and 100GS)
 - Fixed some route parsing crashes
 - Fixed issue when STAR was selected without an approach, it selected random runway instead of needed one
 - You can now select approach without a star in Proc tab
@@ -52,7 +109,8 @@
 # [1.2.3-2-final]
 
 - Fixed **some** cyrillic ATC info not being parsed correctly
-- Updated auto-parsed domains whitelist: added vatsim-radar.com (lol), vatrus.info, uuwv.ru, vatsim-scandinavia.org, vatcar.net. Current list also includes vats.im, discord.gg, vatsca.org, vatger.de
+- Updated auto-parsed domains whitelist: added vatsim-radar.com (lol), vatrus.info, uuwv.ru, vatsim-scandinavia.org,
+  vatcar.net. Current list also includes vats.im, discord.gg, vatsca.org, vatger.de
 - Arrival airport will now always be visible in Proc Aircraft tab, even when not departed yet
 - Fixed aircraft route sometimes appearing when on-hover parsing is disabled
 
@@ -71,9 +129,11 @@
 
 # [1.2.3-final]
 
-Welcome to newest VATSIM Radar release! I didn't plan to make it this huge so sorry about that. I have also decided to make it performance focused - so Radar may start to work better on not-so-high end machines.
+Welcome to newest VATSIM Radar release! I didn't plan to make it this huge so sorry about that. I have also decided to
+make it performance focused - so Radar may start to work better on not-so-high end machines.
 
-Please keep in mind: Navigraph will initialize for a very long time in this update. This is intended, please be patient - that saves you dozens MBs of memory.
+Please keep in mind: Navigraph will initialize for a very long time in this update. This is intended, please be
+patient - that saves you dozens MBs of memory.
 
 ## Highlights
 
@@ -87,9 +147,11 @@ Please keep in mind: Navigraph will initialize for a very long time in this upda
 - It is now possible to view VATSpy polygons on "other worlds" of map
 - Added ZMA Ocean Area duplicating logic by glott
 - Added 95% and 97.5% transparency settings for SIGMETs
-- Added information panel to airport dashboard in controller mode, showing current/previous QNH, ATIS info, as well as current/previous METAR
+- Added information panel to airport dashboard in controller mode, showing current/previous QNH, ATIS info, as well as
+  current/previous METAR
 - You can now disable route parsing on hover
-- Added ZOA NCT Area mapping logic by `csko` and ZMA Ocean Area logic by `glott` - see https://docs.vatsim-radar.com/guide/duplicating\
+- Added ZOA NCT Area mapping logic by `csko` and ZMA Ocean Area logic by `glott` -
+  see https://docs.vatsim-radar.com/guide/duplicating\
 - Added altitude correction to Speed & Altitude graph, so it now shows altitude according to QNH
 - Pilot info and airline name are now aligned in pilot overlay
 - Added registration, alternates (w/ takeoff/enroute) and Voice Rules to pilot overlay
@@ -105,9 +167,11 @@ Please keep in mind: Navigraph will initialize for a very long time in this upda
 - Improved route loading speed
 - Reduced VATGlasses memory usage when update is not needed
 - Skip VATGlasses update if not needed to improve memory usage and performance
-- Significantly (>100x times) reduced route parsing memory consumption in exchange for slow **first** Navigraph database init
+- Significantly (>100x times) reduced route parsing memory consumption in exchange for slow **first** Navigraph database
+  init
 - Tracks data is no longer required for initialization - it will be loaded in background instead
-- Fixed unneeded flight data updating even when aircraft is standing still - this should slightly improve flight history service performance
+- Fixed unneeded flight data updating even when aircraft is standing still - this should slightly improve flight history
+  service performance
 - Route does no longer depend on tracks loading - previously, if we had tracks slow load, route didn't load as well
 - Improved performance when updating aircraft in dashboard mode
 - Add airport data cleanup when zooming out
@@ -125,7 +189,8 @@ Please keep in mind: Navigraph will initialize for a very long time in this upda
 - Insane aviation fact: magnetic declination exists! Holding patterns now respect it
 - Waypoint restrictions will stop hiding randomly and will always show when intended
 - FIR/ARTCC bookings will not show when they are disabled
-- Fixed edge cases when day title on events page was not displayed correctly when switching between local and GMT+0 timezones
+- Fixed edge cases when day title on events page was not displayed correctly when switching between local and GMT+0
+  timezones
 - Fixed pilot overlay crash when pilot is flying to an unknown airport
 - Fixed airport aircraft list crashing
 - Fixed aircraft route constantly disappearing on first open

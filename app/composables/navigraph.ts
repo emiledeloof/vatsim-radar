@@ -328,9 +328,12 @@ export async function getFlightPlanWaypoints({
     function deleteDoubleWaypoint(identifier: string) {
         const previousWaypoint = waypoints[waypoints.length - 1];
         let previousIdentifier = previousWaypoint.identifier;
-        if (previousWaypoint.airway) previousIdentifier = previousWaypoint.airway.value[2][previousWaypoint.airway.value[2].length - 1][0];
+        if (previousWaypoint.airway) {
+            previousIdentifier = previousWaypoint.airway.value[2][previousWaypoint.airway.value[2].length - 1][0];
 
-        if (identifier === previousIdentifier) waypoints.splice(waypoints.length - 1, 1);
+            if (identifier === previousIdentifier) previousWaypoint.airway.value[2].splice(previousWaypoint.airway.value[2].length - 1, 1);
+        }
+        else if (identifier === previousIdentifier) waypoints.splice(waypoints.length - 1, 1);
     }
 
     let sidInit = false;
@@ -541,6 +544,8 @@ export async function getFlightPlanWaypoints({
                         if (fetchedProcedure) {
                             const transition = fetchedProcedure?.transitions.find(x => arrApproach?.transitions.includes(x.name) || x.name === entries[entries.length - 2]);
                             if (transition) {
+                                deleteDoubleWaypoint(transition?.waypoints[0]?.identifier ?? '');
+
                                 waypoints.push(...transition.waypoints.map(x => ({
                                     identifier: x.identifier,
                                     coordinate: x.coordinate,
@@ -555,6 +560,7 @@ export async function getFlightPlanWaypoints({
                                 } satisfies NavigraphNavDataEnrouteWaypointPartial)));
                             }
 
+                            deleteDoubleWaypoint(fetchedProcedure?.waypoints[0]?.identifier ?? '');
                             waypoints.push(...fetchedProcedure.waypoints.map(x => ({
                                 identifier: x.identifier,
                                 coordinate: x.coordinate,

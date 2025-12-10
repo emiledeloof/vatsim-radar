@@ -80,6 +80,12 @@ const isExpired = computed(() => {
     return data.value?.validUntil && data.value.validUntil < dataStore.time.value;
 });
 
+watchEffect(() => {
+    if (data.value?.validUntil) {
+        console.log(`Sigmets valid until ${ new Date(data.value?.validUntil).toISOString() }`);
+    }
+});
+
 const shouldSetCurrent = computed(() => {
     return store.localSettings.filters?.layers?.sigmets?.activeDate && store.localSettings.filters?.layers?.sigmets?.activeDate !== 'current' && new Date(store.localSettings.filters?.layers?.sigmets?.activeDate).getTime() < dataStore.time.value;
 });
@@ -126,6 +132,10 @@ const openSigmet = ref<{
 
 const sigmetFields = (sigmet: Sigmet['properties']): [string, string | number][] => {
     const fields: [string, string][] = [];
+
+    if (store.localSettings?.filters?.layers?.sigmets?.raw && sigmet.raw && (sigmet.dataType === 'sigmet' || sigmet.dataType === 'airsigmet')) {
+        return [['', sigmet.raw]];
+    }
 
     if (sigmet.region || sigmet.regionName) fields.push(['Region / FIR', `${ sigmet.region || sigmet.regionName || '' }`]);
     if (sigmet.type || sigmet.hazard) fields.push(['Hazard / Type', `${ sigmet.hazard ?? '' } ${ sigmet.type ? ` / ${ sigmet.type }` : '' }`]);
@@ -335,9 +345,12 @@ onBeforeUnmount(() => {
 
         .__grid-info-sections {
             gap: 0 !important;
-            padding: 8px;
-            border-radius: 8px;
-            background: $darkgray850;
+
+            &:not(:only-child) {
+                padding: 8px;
+                border-radius: 8px;
+                background: $darkgray850;
+            }
         }
     }
 }
